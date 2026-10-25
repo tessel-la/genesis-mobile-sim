@@ -12,6 +12,7 @@ services:
       ROS_STATIC_PEERS: ${ROS_STATIC_PEERS:-}
       RMW_IMPLEMENTATION: ${RMW_IMPLEMENTATION:-rmw_cyclonedds_cpp}
       CYCLONEDDS_URI: ${CYCLONEDDS_URI:-file:///etc/cyclonedds/config.xml}
+      MESH_RESOURCES_HOST: ${MESH_RESOURCES_HOST:-127.0.0.1}
       MESH_RESOURCES_PORT: ${MESH_RESOURCES_PORT:-8000}
     volumes:
       - mobile_maps:/maps
