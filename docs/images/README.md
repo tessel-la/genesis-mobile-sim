@@ -2,7 +2,7 @@
 
 `warehouse.png` is an actual Genesis CPU render of the scene built by
 [`environment.py`](../../src/genesis_mobile_sim/environment.py). The camera is placed
-above the warehouse; no robot model or meshes are loaded for this capture. Room
+in the warehouse aisle; no robot model or meshes are loaded for this capture. Room
 geometry and layout belong to this MIT-licensed integration. Shelves, pallet jacks,
 and clutter come from the pinned AWS RoboMaker assets; their [source](../../assets/environments/warehouse/SOURCE.md)
 and [permission notice](../../assets/environments/warehouse/LICENSE) remain available.

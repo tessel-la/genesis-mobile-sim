@@ -7,7 +7,7 @@ or proprietary simulation software.
 
 ## Preview
 
-![Overhead view of the simulator's warehouse course, with shelves, loading props, and marked aisles](docs/images/warehouse.png)
+![View down the simulator's warehouse aisle, with stocked shelves, a pallet jack, and floor markings](docs/images/warehouse.png)
 
 The actual Genesis warehouse scene, rendered without the robot mesh. Warehouse assets
 retain their [upstream permission notice](assets/environments/warehouse/LICENSE).
