@@ -1,0 +1,13 @@
+services:
+  mobile_sim:
+    image: genesis-mobile-sim:nvidia-local
+    build:
+      args:
+        PYTORCH_INDEX_URL: https://download.pytorch.org/whl/cu128
+    runtime: nvidia
+    gpus: all
+    environment:
+      GENESIS_DEVICE: cuda
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility,graphics
+      LIBGL_ALWAYS_SOFTWARE: "0"

@@ -1,0 +1,33 @@
+services:
+  mobile_sim:
+    build: .
+    image: genesis-mobile-sim:cpu-local
+    network_mode: host
+    ipc: host
+    shm_size: 1gb
+    environment:
+      ROS_DOMAIN_ID: ${ROS_DOMAIN_ID:-0}
+      ROS_LOCALHOST_ONLY: ${ROS_LOCALHOST_ONLY:-0}
+      ROS_AUTOMATIC_DISCOVERY_RANGE: ${ROS_AUTOMATIC_DISCOVERY_RANGE:-SUBNET}
+      ROS_STATIC_PEERS: ${ROS_STATIC_PEERS:-}
+      RMW_IMPLEMENTATION: ${RMW_IMPLEMENTATION:-rmw_cyclonedds_cpp}
+      CYCLONEDDS_URI: ${CYCLONEDDS_URI:-file:///etc/cyclonedds/config.xml}
+      MESH_RESOURCES_PORT: ${MESH_RESOURCES_PORT:-8000}
+    volumes:
+      - mobile_maps:/maps
+      - mobile_cache:/root/.cache
+      - mobile_interfaces:/overlay_ws/mobile
+      - ${CYCLONEDDS_CONFIG_PATH:-./config/cyclonedds.xml}:/etc/cyclonedds/config.xml:ro
+    healthcheck:
+      test: [CMD, bash, -c, "source /opt/ros/jazzy/setup.bash && /opt/sim/bin/python -m genesis_mobile_sim.health"]
+      interval: 30s
+      timeout: 15s
+      start_period: 600s
+      retries: 3
+    stop_grace_period: 30s
+
+volumes:
+  mobile_maps:
+  mobile_cache:
+  mobile_interfaces:
+    name: ${MOBILE_INTERFACES_VOLUME:-genesis-mobile-interfaces-jazzy}

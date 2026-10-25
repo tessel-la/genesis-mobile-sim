@@ -1,0 +1,9 @@
+services:
+  ros-stack:
+    volumes:
+      - mobile_interfaces:/overlay_ws/mobile:ro
+
+volumes:
+  mobile_interfaces:
+    external: true
+    name: ${MOBILE_INTERFACES_VOLUME:-genesis-mobile-interfaces-jazzy}

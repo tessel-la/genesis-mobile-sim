@@ -1,0 +1,13 @@
+services:
+  mobile_sim:
+    image: genesis-mobile-sim:amd-local
+    build:
+      args:
+        PYTORCH_INDEX_URL: https://download.pytorch.org/whl/rocm6.3
+    environment:
+      GENESIS_DEVICE: amdgpu
+      PYOPENGL_PLATFORM: egl
+      LIBGL_ALWAYS_SOFTWARE: "0"
+    devices:
+      - /dev/kfd:/dev/kfd
+      - /dev/dri:/dev/dri
