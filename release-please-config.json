@@ -1,0 +1,15 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "bootstrap-sha": "bddc5226d00e32426497998472fe00ac12a57665",
+  "include-v-in-tag": true,
+  "packages": {
+    ".": {
+      "release-type": "python",
+      "package-name": "genesis-mobile-sim",
+      "changelog-path": "CHANGELOG.md",
+      "extra-files": [
+        "uv.lock"
+      ]
+    }
+  }
+}

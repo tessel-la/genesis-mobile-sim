@@ -27,3 +27,7 @@ target-version = "py310"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
+
+# The ROS image exposes colcon-core through --system-site-packages; it requires setuptools<80.
+[tool.uv]
+constraint-dependencies = ["setuptools<80"]

@@ -10,13 +10,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # CPU wheels keep the default runtime independent of NVIDIA hardware. An AMD
 # deployment builds the same application with the matching ROCm PyTorch wheels.
+ARG PYTORCH_VERSION=2.14.1
 ARG PYTORCH_INDEX_URL=https://download.pytorch.org/whl/cpu
 RUN python3 -m venv --system-site-packages /opt/sim \
-    && /opt/sim/bin/pip install --no-cache-dir torch --index-url "${PYTORCH_INDEX_URL}"
+    && /opt/sim/bin/pip install --no-cache-dir "torch==${PYTORCH_VERSION}" --index-url "${PYTORCH_INDEX_URL}"
 WORKDIR /app
-COPY pyproject.toml ./
-RUN mkdir -p src/genesis_mobile_sim && touch src/genesis_mobile_sim/__init__.py \
-    && /opt/sim/bin/pip install --no-cache-dir -e .
+COPY pyproject.toml README.md requirements.lock ./
+RUN /opt/sim/bin/pip install --no-cache-dir --require-hashes -r requirements.lock \
+    && mkdir -p src/genesis_mobile_sim && touch src/genesis_mobile_sim/__init__.py \
+    && /opt/sim/bin/pip install --no-cache-dir --no-deps -e .
 
 # Build the upstream message package as a relocatable overlay for rosbridge.
 # Robo-Boy sources /overlay_ws/*, so no application-specific action code is needed.
