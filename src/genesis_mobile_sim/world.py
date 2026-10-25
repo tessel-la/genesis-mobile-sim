@@ -4,6 +4,7 @@ from pathlib import Path
 from xml.etree import ElementTree
 
 from .environment import warehouse
+from .lidar import AZIMUTHS, ELEVATIONS, MAX_RANGE, MIN_RANGE
 from .motion import Motion
 from .policy import JOINT_NAMES, Go2Policy
 from .recovery import RecoveryPolicy
@@ -38,14 +39,16 @@ class World:
         warehouse(self.scene, gs)
         self.robot = self.scene.add_entity(gs.morphs.URDF(file=str(model_path()), pos=(0, 0, 0.35)))
         self.base = self.robot.get_link(BASE_FRAME)
+        pattern = gs.sensors.SphericalPattern(angles=(AZIMUTHS, ELEVATIONS))
+        self.lidar_directions = self.array(pattern.ray_dirs)
         self.lidar = self.scene.add_sensor(
             gs.sensors.Lidar(
                 entity_idx=self.robot.idx,
                 link_idx_local=self.base.idx_local,
                 pos_offset=LASER_OFFSET,
-                pattern=gs.sensors.SphericalPattern(angles=(list(range(-180, 180)), [0.0])),
-                min_range=0.08,
-                max_range=10.0,
+                pattern=pattern,
+                min_range=MIN_RANGE,
+                max_range=MAX_RANGE,
                 return_points=False,
             )
         )
