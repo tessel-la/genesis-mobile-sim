@@ -1,0 +1,27 @@
+name: CI
+on:
+  pull_request:
+  push:
+    branches: [dev, main]
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: '0.9.5'
+      - run: uv sync --locked --extra dev  --python 3.12
+      - run: uv run --frozen --extra dev pytest
+      - run: uv run --frozen --extra dev ruff check .
+      - name: Check release version marker
+        run: grep -q '# x-release-please-version' uv.lock
+      - name: Check frozen Docker dependencies
+        run: |
+          uv export --frozen --no-dev --no-emit-project --no-emit-package torch --output-file requirements.lock
+          git diff --exit-code -- requirements.lock
+      - run: docker compose config --quiet
+      - run: docker compose -f docker-compose.yml -f docker-compose.nvidia.yml config --quiet
+      - run: docker compose -f docker-compose.yml -f docker-compose.amd.yml config --quiet

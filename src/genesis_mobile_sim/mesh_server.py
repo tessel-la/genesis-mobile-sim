@@ -29,7 +29,9 @@ class MeshHandler(SimpleHTTPRequestHandler):
 
 
 @contextmanager
-def serve_meshes(host="0.0.0.0", port=None):
+def serve_meshes(host=None, port=None):
+    if host is None:
+        host = os.environ.get("MESH_RESOURCES_HOST", "127.0.0.1")
     if port is None:
         port = int(os.environ.get("MESH_RESOURCES_PORT", "8000"))
     handler = partial(MeshHandler, directory=str(model_path().parents[2]))

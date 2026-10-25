@@ -4,6 +4,7 @@ services:
     build:
       args:
         PYTORCH_INDEX_URL: https://download.pytorch.org/whl/rocm6.3
+        PYTORCH_VERSION: "2.7.1"
     environment:
       GENESIS_DEVICE: amdgpu
       PYOPENGL_PLATFORM: egl
