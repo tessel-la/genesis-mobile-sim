@@ -5,6 +5,18 @@ and navigate with ROS 2 Jazzy, SLAM Toolbox, and Nav2. Genesis runs physics and 
 existing trained walking and recovery policies run unchanged. You do not need a robot
 or proprietary simulation software.
 
+## Preview
+
+![Overhead view of the simulator's warehouse course, with shelves, loading props, and marked aisles](docs/images/warehouse.png)
+
+The actual Genesis warehouse scene, rendered without the robot mesh. Warehouse assets
+retain their [upstream permission notice](assets/environments/warehouse/LICENSE).
+
+![Go2 Control companion panel with motion feedback, touch joystick, and recovery controls](docs/images/control-panel.png)
+
+The companion [Go2 Control panel](https://github.com/tessel-la/robo-boy-go2-control-panel),
+shown with sample telemetry. See [preview provenance](docs/images/README.md).
+
 ## Run it
 
 Use Linux x86-64, Docker Engine, and Docker Compose v2. The default runs real physics
