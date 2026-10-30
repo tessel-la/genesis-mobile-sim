@@ -10,7 +10,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # CPU wheels keep the default runtime independent of NVIDIA hardware. An AMD
 # deployment builds the same application with the matching ROCm PyTorch wheels.
-ARG PYTORCH_VERSION=2.14.1
+ARG PYTORCH_VERSION=2.11.0
 ARG PYTORCH_INDEX_URL=https://download.pytorch.org/whl/cpu
 RUN python3 -m venv --system-site-packages /opt/sim \
     && /opt/sim/bin/pip install --no-cache-dir "torch==${PYTORCH_VERSION}" --index-url "${PYTORCH_INDEX_URL}"

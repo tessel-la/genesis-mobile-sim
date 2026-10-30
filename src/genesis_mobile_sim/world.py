@@ -13,6 +13,7 @@ from .robot_model import BASE_FRAME, CAMERA_OFFSET, LASER_OFFSET, model_path
 ROOT = Path(__file__).resolve().parents[2]
 DT = 0.02
 CAMERA_WIDTH, CAMERA_HEIGHT, CAMERA_FOV = 320, 240, 60.0
+CAMERA_NEAR, CAMERA_FAR = 0.01, 100.0
 
 
 class World:
@@ -58,18 +59,31 @@ class World:
                 link_idx_local=self.base.idx_local,
             )
         )
-        self.camera = self.scene.add_sensor(
-            gs.sensors.RasterizerCameraOptions(
-                entity_idx=self.robot.idx,
-                link_idx_local=self.base.idx_local,
-                pos=CAMERA_OFFSET,
-                lookat=(1.34, 0.0, 0.04),
-                up=(0, 0, 1),
-                res=(CAMERA_WIDTH, CAMERA_HEIGHT),
-                fov=CAMERA_FOV,
-            )
+        # Public visual camera API renders RGB and axial depth together on demand.
+        self.camera = self.scene.add_camera(
+            pos=CAMERA_OFFSET,
+            lookat=(1.34, 0.0, 0.04),
+            up=(0, 0, 1),
+            res=(CAMERA_WIDTH, CAMERA_HEIGHT),
+            fov=CAMERA_FOV,
+            near=CAMERA_NEAR,
+            far=CAMERA_FAR,
+            GUI=False,
         )
         self.scene.build()
+        # OpenGL camera axes: right = -base Y, up = base Z, back = -base X.
+        # This is the existing ROS optical mount with Y/Z converted to OpenGL.
+        self.camera.attach(
+            self.base,
+            np.array(
+                [
+                    [0, 0, -1, CAMERA_OFFSET[0]],
+                    [-1, 0, 0, CAMERA_OFFSET[1]],
+                    [0, 1, 0, CAMERA_OFFSET[2]],
+                    [0, 0, 0, 1],
+                ]
+            ),
+        )
         self.joint_names = JOINT_NAMES
         self.motors = [self.robot.get_joint(name).dofs_idx_local[0] for name in JOINT_NAMES]
         description = ElementTree.parse(model_path())
@@ -138,6 +152,18 @@ class World:
         self.scene.step()
         self.steps += 1
         self.motion.update(self.steps, now, self.upright, float(self.base.get_pos()[2]))
+
+    def read_camera(self, *, rgb=True, depth=False):
+        self.camera.move_to_attach()
+        # Genesis 1.3.2's depth-only pass differs on masked/antialiased surfaces.
+        # Keep the shared color/depth pass so depth geometry matches the visible RGB scene.
+        color, distance, _, _ = self.camera.render(rgb=True, depth=depth)
+        if depth:
+            # Rasterizer depth is optical-axis Z in metres, not distance along a ray.
+            valid = self.np.isfinite(distance) & (distance > CAMERA_NEAR)
+            valid &= distance < CAMERA_FAR * (1 - 1e-3)
+            distance = self.np.where(valid, distance, 0).astype("<f4", copy=False)
+        return color if rgb else None, distance
 
     def array(self, tensor):
         return tensor.detach().cpu().numpy()

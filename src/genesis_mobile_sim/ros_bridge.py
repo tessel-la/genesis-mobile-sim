@@ -42,6 +42,8 @@ class Simulator(Node):
         self.imu_pub = self.create_publisher(Imu, "/imu/data", qos_profile_sensor_data)
         # Robo-Boy's web_video_server subscribes reliably.
         self.image_pub = self.create_publisher(Image, "/camera/image_raw", 1)
+        self.depth_pub = self.create_publisher(Image, "/camera/depth/image_raw", 1)
+        self.depth_info_pub = self.create_publisher(CameraInfo, "/camera/depth/camera_info", 1)
         self.info_pub = self.create_publisher(CameraInfo, "/camera/camera_info", 1)
         self.tf = TransformBroadcaster(self, qos=QoSProfile(depth=1))
         self.world = World(os.environ.get("GENESIS_DEVICE", "cpu"))
@@ -169,23 +171,39 @@ class Simulator(Node):
     def publish_camera(self) -> None:
         # Calibration is cheap and remains available without an image viewer.
         stamp = self.stamp()
-        if self.image_pub.get_subscription_count() > 0:
+        color_requested = self.image_pub.get_subscription_count() > 0
+        depth_requested = self.depth_pub.get_subscription_count() > 0
+        if color_requested or depth_requested:
+            rgb, depth = self.world.read_camera(rgb=color_requested, depth=depth_requested)
+        if color_requested:
             image = Image()
             image.header.stamp, image.header.frame_id = stamp, "camera_optical_frame"
-            rgb = self.world.array(self.world.camera.read().rgb).astype("uint8", copy=False)
             image.height, image.width = CAMERA_HEIGHT, CAMERA_WIDTH
-            image.encoding, image.step, image.data = "rgb8", CAMERA_WIDTH * 3, rgb.tobytes()
+            image.encoding, image.step, image.data = (
+                "rgb8",
+                CAMERA_WIDTH * 3,
+                rgb.astype("uint8", copy=False).tobytes(),
+            )
             self.image_pub.publish(image)
+        if depth_requested:
+            image = Image()
+            image.header.stamp, image.header.frame_id = stamp, "camera_optical_frame"
+            image.height, image.width = CAMERA_HEIGHT, CAMERA_WIDTH
+            image.encoding, image.is_bigendian = "32FC1", False
+            image.step, image.data = CAMERA_WIDTH * 4, depth.astype("<f4", copy=False).tobytes()
+            self.depth_pub.publish(image)
         info = CameraInfo()
         info.header.stamp, info.header.frame_id = stamp, "camera_optical_frame"
         info.width, info.height = CAMERA_WIDTH, CAMERA_HEIGHT
         focal = CAMERA_HEIGHT / (2 * math.tan(math.radians(CAMERA_FOV) / 2))
-        cx, cy = CAMERA_WIDTH / 2, CAMERA_HEIGHT / 2
+        # Genesis samples pixel centres at (u + 0.5, v + 0.5); ROS indexes centres at integers.
+        cx, cy = (CAMERA_WIDTH - 1) / 2, (CAMERA_HEIGHT - 1) / 2
         info.distortion_model, info.d = "plumb_bob", [0.0] * 5
         info.k = [focal, 0.0, cx, 0.0, focal, cy, 0.0, 0.0, 1.0]
         info.r = [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
         info.p = [focal, 0.0, cx, 0.0, 0.0, focal, cy, 0.0, 0.0, 0.0, 1.0, 0.0]
         self.info_pub.publish(info)
+        self.depth_info_pub.publish(info)
 
 
 def main() -> None:

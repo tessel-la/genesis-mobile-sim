@@ -33,7 +33,7 @@ try:
     before = distances[:, PLANAR_RING : PLANAR_RING + 1].copy()
     assert before.min() > 1.1, float(before.min())
     assert 6.5 < before[180, 0] < 7.1, before[180, 0]
-    rgb = world.array(world.camera.read().rgb)
+    rgb = world.read_camera()[0]
     assert rgb.shape == (240, 320, 3) and rgb.std() > 1, rgb.shape
     start = world.array(world.base.get_pos()).copy()
     run(200, (0.2, 0, 0))
