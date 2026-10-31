@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.3.0](https://github.com/tessel-la/genesis-mobile-sim/compare/v0.2.0...v0.3.0) (2026-10-25)
+
+
+### Features
+
+* promote dev to main ([#7](https://github.com/tessel-la/genesis-mobile-sim/issues/7)) ([b037c00](https://github.com/tessel-la/genesis-mobile-sim/commit/b037c00f9f2a32f42450a31e3dc10e3f08b965a4))
+
+
+### Documentation
+
+* add readme previews with license provenance ([#6](https://github.com/tessel-la/genesis-mobile-sim/issues/6)) ([2382bdc](https://github.com/tessel-la/genesis-mobile-sim/commit/2382bdca280b763f7d024422819b4e012609736e))
+
 ## [0.2.0](https://github.com/tessel-la/genesis-mobile-sim/compare/v0.1.0...v0.2.0) (2026-10-25)
 
 
