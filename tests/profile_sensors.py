@@ -25,13 +25,13 @@ def measure(name, action):
 try:
     for _ in range(30):
         world.step(time.monotonic())
-    world.array(world.camera.read().rgb)
+    world.read_camera()[0]
     started = time.perf_counter()
     for _ in range(200):
         measure("step", lambda: world.step(time.monotonic()))
         if world.steps % 10 == 0:
             measure("lidar", lambda: world.array(world.lidar.read().distances))
-            measure("camera", lambda: world.array(world.camera.read().rgb))
+            measure("camera", lambda: world.read_camera()[0])
     elapsed = time.perf_counter() - started
     print(
         json.dumps(

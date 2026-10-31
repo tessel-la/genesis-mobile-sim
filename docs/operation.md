@@ -119,6 +119,8 @@ OpenGL rasterizer, not its CUDA-only batch renderer.
 | `/cmd_vel` | Body x/y/yaw `geometry_msgs/msg/Twist` commands |
 | `/scan` | 360-ray planar lidar, 10 m range, 10 Hz in simulation time |
 | `/points` | 3D lidar as `sensor_msgs/msg/PointCloud2`, up to 6,120 XYZ hits, 5 Hz |
+| `/camera/depth/image_raw` | 320 × 240 axial depth, 32FC1 metres, on demand at 5 Hz simulation time |
+| `/camera/depth/camera_info` | Matching pinhole calibration and acquisition timestamp |
 | `/camera/image_raw`, `/camera/camera_info` | 320 × 240 RGB camera and calibration, 5 Hz |
 | `/imu/data` | Body acceleration and angular velocity, 50 Hz |
 | `/odom` | Ideal simulator pose and body velocity, 50 Hz |
@@ -154,7 +156,15 @@ time. SLAM accepts scans at 100 ms intervals instead of the upstream 500 ms mini
 its travel thresholds still avoid adding redundant graph nodes. The simulation loop
 accounts for camera work in its pacing and catches up after short rendering stalls.
 Sustained overload still runs slower than wall time. Close unused camera views:
-RGB rendering pauses when `/camera/image_raw` has no subscribers. Calibration remains
+RGB and depth share one on-demand OpenGL render. Pixels are published only for
+subscribed image topics, and no camera render runs when both are unused.
+Depth uses a combined color/depth pass even without an RGB viewer: Genesis 1.3.2’s
+depth-only pass differs on masked/antialiased surfaces. This costs color rendering
+while ensuring the depth follows the visible scene. Depth work is omitted for RGB-only viewers.
+Depth uses 32FC1 optical-axis metres with zero for invalid/clipped pixels; it shares
+`camera_optical_frame`, the acquisition timestamp, and the RGB camera’s intrinsics.
+The depth calibration is also published at `/camera/depth/camera_info` for discovery.
+Pixel-centre intrinsics account for Genesis’s half-pixel sampling convention. Calibration remains
 available, and images resume when a viewer or health check subscribes. Cloud packing
 also pauses without subscribers; Genesis still casts the lidar rays each physics step.
 
@@ -209,6 +219,8 @@ PYOPENGL_PLATFORM=egl EGL_PLATFORM=surfaceless LIBGL_ALWAYS_SOFTWARE=1 PYTHONPAT
   python tests/smoke_physics.py
 ```
 
+`tests/smoke_depth.py` checks RGB/depth agreement and finite metric pixels without ROS or motion commands.
+
 `tests/smoke_ros.py` tests the running ROS stack, including live maps, a moving local
 costmap, 3D lidar messages, command expiry, and a navigation goal. It commands motion: run it only in an
 isolated ROS domain, never against a physical robot.
@@ -233,7 +245,7 @@ AMD acceleration has not been hardware-tested.
 ## Limitations
 
 - CPU simulation may run slower than wall time. Sensor rates are in simulation time.
-- The camera is RGB. Mapping uses planar lidar; the 3D cloud is a visualization, not 3D SLAM or a persistent 3D map.
+- The camera provides RGB and ideal axial depth, without sensor noise. Mapping uses planar lidar; the 3D cloud is a visualization, not 3D SLAM or a persistent 3D map.
 - Odometry is ideal simulator data. The IMU is published but is not fused into a leg state estimator.
 - The existing Go2 policies are simulation baselines, not controllers validated for physical hardware.
 - Virtual lidar and camera mounts are for integration tests, not calibrated Go2 sensor hardware.
