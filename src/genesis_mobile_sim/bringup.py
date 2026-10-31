@@ -59,6 +59,7 @@ def navigation_parameters(nav: dict, slam: dict) -> dict:
         scan_topic="/scan",
         min_laser_range=0.08,
         max_laser_range=10.0,
+        minimum_time_interval=0.1,
         map_update_interval=1.0,
         minimum_travel_distance=0.1,
         minimum_travel_heading=0.1,

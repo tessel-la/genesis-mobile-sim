@@ -83,8 +83,8 @@ ros2 topic pub --once /go2/motion_cmd std_msgs/msg/String '{data: stand}'
 runs with zero velocity commands, then hands off to standing after a stable stance.
 Walking commands are rejected during recovery or while fallen. A 12 s simulated
 timeout returns to damping if recovery cannot complete; it never teleports the base
-or resets SLAM. Tilted lidar is withheld during recovery because it is not a valid
-planar floor scan. Odometry, joints, status, and the RGB camera remain live.
+or resets SLAM. The planar scan is withheld during recovery because it is not a valid
+floor scan. The 3D lidar cloud, odometry, joints, status, and the RGB camera remain live.
 
 The [Go2 Control external panel](https://github.com/tessel-la/robo-boy-go2-control-panel)
 exposes **Stand** and **Recover / stand up**.
@@ -117,10 +117,11 @@ OpenGL rasterizer, not its CUDA-only batch renderer.
 | --- | --- |
 | `/go2/motion_cmd`, `/go2/status` | Motion requests and execution status |
 | `/cmd_vel` | Body x/y/yaw `geometry_msgs/msg/Twist` commands |
-| `/scan` | 360-ray planar lidar, 10 m range, 5 Hz in simulation time |
+| `/scan` | 360-ray planar lidar, 10 m range, 10 Hz in simulation time |
+| `/points` | 3D lidar as `sensor_msgs/msg/PointCloud2`, up to 6,120 XYZ hits, 5 Hz |
 | `/camera/image_raw`, `/camera/camera_info` | 320 × 240 RGB camera and calibration, 5 Hz |
-| `/imu/data` | Body acceleration and angular velocity, 25 Hz |
-| `/odom` | Ideal simulator pose and body velocity, 25 Hz |
+| `/imu/data` | Body acceleration and angular velocity, 50 Hz |
+| `/odom` | Ideal simulator pose and body velocity, 50 Hz |
 | `/joint_states`, `/robot_description`, `/tf`, `/tf_static` | Robot model and transforms |
 | `/clock` | Simulation time; mapping and navigation use this clock |
 | `/map` | Occupancy grid built from lidar by SLAM Toolbox |
@@ -134,10 +135,28 @@ This is ideal ground-truth odometry, not a leg state estimator. Lidar measuremen
 come from Genesis raycasts, and the camera renders the scene through OpenGL.
 The original Go2 meshes are served on port 8000 through Robo-Boy's existing mesh proxy.
 
+One Genesis raycast sensor supplies both lidar topics. It covers 360° horizontally
+at 1° spacing and 17 elevation rings from −16° to +16° at 2° spacing. `/scan` uses
+only the horizontal ring, preserving SLAM Toolbox and Nav2's planar geometry.
+`/points` carries finite hits in the `laser` frame as little-endian float32 XYZ
+triples, at most 73,440 bytes per frame before transport overhead. Misses remain
+infinite in `/scan` so obstacle clearing still works; they are omitted from the cloud.
+The 3D cloud shows the current measurement; this setup does not build a 3D map.
+
 Connect Robo-Boy through the shared ROS stack. Add a **Camera** using
-`/camera/image_raw`, and a **3D view** with the robot description, `/scan`, and fixed
-frame `map`. Occupancy grids and costmaps can be viewed in RViz on a ROS workstation
-with `use_sim_time` enabled; Robo-Boy currently has no occupancy-grid renderer.
+`/camera/image_raw`, and a **3D view** with the robot description, point cloud
+`/points`, and fixed frame `map`. Use `/scan` to inspect the planar navigation slice.
+Occupancy grids and costmaps can also be viewed in RViz on a ROS workstation
+with `use_sim_time` enabled.
+
+Pose, joints, IMU, and `odom → base` transforms update every 20 ms of simulation
+time. SLAM accepts scans at 100 ms intervals instead of the upstream 500 ms minimum;
+its travel thresholds still avoid adding redundant graph nodes. The simulation loop
+accounts for camera work in its pacing and catches up after short rendering stalls.
+Sustained overload still runs slower than wall time. Close unused camera views:
+RGB rendering pauses when `/camera/image_raw` has no subscribers. Calibration remains
+available, and images resume when a viewer or health check subscribes. Cloud packing
+also pauses without subscribers; Genesis still casts the lidar rays each physics step.
 
 For navigation actions in Robo-Boy, start this simulator once to populate
 `genesis-mobile-interfaces-jazzy`. Select **Mobile navigation** in the dashboard's
@@ -191,8 +210,18 @@ PYOPENGL_PLATFORM=egl EGL_PLATFORM=surfaceless LIBGL_ALWAYS_SOFTWARE=1 PYTHONPAT
 ```
 
 `tests/smoke_ros.py` tests the running ROS stack, including live maps, a moving local
-costmap, command expiry, and a navigation goal. It commands motion: run it only in an
+costmap, 3D lidar messages, command expiry, and a navigation goal. It commands motion: run it only in an
 isolated ROS domain, never against a physical robot.
+
+To compare physics and sensor costs without joining a ROS domain, run
+`python tests/profile_sensors.py` in the simulator image. It warms up kernels and
+the camera, then reports physics, lidar-read, and camera times over 200 steps.
+`python tests/profile_ros.py` subscribes without sending motion commands and reports
+wall-time topic rates and gaps with camera/cloud viewers closed and open. Allow the
+first camera frame to warm up before comparing steady-state rates.
+Run the ROS message tests inside the Jazzy image with pytest available:
+`python -m pytest tests/test_ros_sensors.py`. The native unit suite skips these
+tests when ROS is absent.
 
 CPU and NVIDIA verification passed on the development host. The warehouse CUDA run
 covered 0.77 m of forward travel, a 1.26 rad turn, 0.004 m of standing drift, lidar and
@@ -204,7 +233,7 @@ AMD acceleration has not been hardware-tested.
 ## Limitations
 
 - CPU simulation may run slower than wall time. Sensor rates are in simulation time.
-- The camera is RGB. Mapping uses planar lidar; this setup does not implement visual SLAM or a 3D map.
+- The camera is RGB. Mapping uses planar lidar; the 3D cloud is a visualization, not 3D SLAM or a persistent 3D map.
 - Odometry is ideal simulator data. The IMU is published but is not fused into a leg state estimator.
 - The existing Go2 policies are simulation baselines, not controllers validated for physical hardware.
 - Virtual lidar and camera mounts are for integration tests, not calibrated Go2 sensor hardware.
