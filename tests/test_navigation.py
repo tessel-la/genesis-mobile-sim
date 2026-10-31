@@ -23,6 +23,7 @@ def test_navigation_uses_live_lidar_instead_of_a_missing_depth_pointcloud():
         assert scan["marking"] and scan["clearing"] and scan["inf_is_valid"]
     assert config["local_costmap"]["local_costmap"]["ros__parameters"]["rolling_window"]
     assert config["slam_toolbox"]["ros__parameters"]["use_sim_time"]
+    assert config["slam_toolbox"]["ros__parameters"]["minimum_time_interval"] == 0.1
     assert config["velocity_smoother"]["ros__parameters"]["max_velocity"] == [
         MAX_LINEAR,
         0,

@@ -12,7 +12,7 @@ from rclpy.action import ActionClient
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, qos_profile_sensor_data
 from rosgraph_msgs.msg import Clock
-from sensor_msgs.msg import Image, Imu, LaserScan
+from sensor_msgs.msg import Image, Imu, LaserScan, PointCloud2
 
 rclpy.init()
 node = Node("mobile_integration_test")
@@ -26,6 +26,7 @@ def record(name):
 retained = QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL)
 subscriptions = [
     node.create_subscription(LaserScan, "/scan", record("scan"), qos_profile_sensor_data),
+    node.create_subscription(PointCloud2, "/points", record("points"), qos_profile_sensor_data),
     node.create_subscription(Image, "/camera/image_raw", record("camera"), 1),
     node.create_subscription(Imu, "/imu/data", record("imu"), qos_profile_sensor_data),
     node.create_subscription(Odometry, "/odom", record("odom"), 10),
@@ -51,8 +52,11 @@ def simulated_time():
 
 
 try:
-    until(lambda: len(latest) == 7)
+    until(lambda: len(latest) == 8)
     assert len(latest["scan"].ranges) == 360
+    points = latest["points"]
+    assert points.header.frame_id == "laser" and points.width > 360
+    assert points.point_step == 12 and len(points.data) == points.row_step == points.width * 12
     assert latest["camera"].width == 320 and latest["camera"].height == 240
     assert min(latest["map"].data) <= 0 and max(latest["map"].data) == 100
     assert math.isclose(
@@ -97,6 +101,7 @@ try:
     print(
         {
             "lidar_rays": 360,
+            "cloud_hits": points.width,
             "camera": "320x240 RGB",
             "map_cells": len(latest["map"].data),
             "rolling_costmap": True,

@@ -10,15 +10,24 @@ from builtin_interfaces.msg import Time
 from geometry_msgs.msg import TransformStamped, Twist
 from nav_msgs.msg import Odometry
 from rclpy.node import Node
-from rclpy.qos import qos_profile_sensor_data
+from rclpy.qos import QoSProfile, qos_profile_sensor_data
 from rosgraph_msgs.msg import Clock
-from sensor_msgs.msg import CameraInfo, Image, Imu, JointState, LaserScan
+from sensor_msgs.msg import CameraInfo, Image, Imu, JointState, LaserScan, PointCloud2, PointField
 from std_msgs.msg import String
 from tf2_ros import TransformBroadcaster
 
+from .lidar import (
+    MAX_RANGE,
+    MIN_RANGE,
+    cloud_bytes,
+    scan_ranges,
+)
 from .mesh_server import serve_meshes
 from .robot_model import BASE_FRAME
+from .timing import next_tick
 from .world import CAMERA_FOV, CAMERA_HEIGHT, CAMERA_WIDTH, DT, World
+
+SCAN_STEPS, CLOUD_STEPS, CAMERA_STEPS = 5, 10, 10
 
 
 class Simulator(Node):
@@ -26,14 +35,17 @@ class Simulator(Node):
         super().__init__("genesis_mobile_sim")
         self.status_pub = self.create_publisher(String, "/go2/status", 1)
         self.clock_pub = self.create_publisher(Clock, "/clock", 10)
-        self.odom_pub = self.create_publisher(Odometry, "/odom", 10)
-        self.joint_pub = self.create_publisher(JointState, "/joint_states", 10)
+        self.odom_pub = self.create_publisher(Odometry, "/odom", 1)
+        self.joint_pub = self.create_publisher(JointState, "/joint_states", 1)
         self.scan_pub = self.create_publisher(LaserScan, "/scan", qos_profile_sensor_data)
+        self.cloud_pub = self.create_publisher(PointCloud2, "/points", qos_profile_sensor_data)
         self.imu_pub = self.create_publisher(Imu, "/imu/data", qos_profile_sensor_data)
         # Robo-Boy's web_video_server subscribes reliably.
         self.image_pub = self.create_publisher(Image, "/camera/image_raw", 1)
+        self.depth_pub = self.create_publisher(Image, "/camera/depth/image_raw", 1)
+        self.depth_info_pub = self.create_publisher(CameraInfo, "/camera/depth/camera_info", 1)
         self.info_pub = self.create_publisher(CameraInfo, "/camera/camera_info", 1)
-        self.tf = TransformBroadcaster(self)
+        self.tf = TransformBroadcaster(self, qos=QoSProfile(depth=1))
         self.world = World(os.environ.get("GENESIS_DEVICE", "cpu"))
         self.get_logger().info(
             f"Genesis backend: {self.world.gs.backend}; device: {self.world.gs.device}"
@@ -110,7 +122,7 @@ class Simulator(Node):
             output.x, output.y, output.z = (float(value) for value in values)
         self.imu_pub.publish(imu)
 
-    def publish_sensors(self) -> None:
+    def publish_status(self) -> None:
         self.status_pub.publish(
             String(
                 data=json.dumps(
@@ -124,33 +136,74 @@ class Simulator(Node):
                 )
             )
         )
-        # A tilted planar scan is not a floor-plan measurement. Preserve mapping
-        # continuity by pausing it during falls/recovery; camera and odometry stay live.
-        if self.world.scan_valid:
+
+    def publish_lidar(self) -> None:
+        # A tilted planar scan is not a floor-plan measurement. The 3D cloud is
+        # still valid during recovery because TF carries the actual sensor pose.
+        planar = self.world.scan_valid
+        cloud = self.world.steps % CLOUD_STEPS == 0 and self.cloud_pub.get_subscription_count() > 0
+        if not planar and not cloud:
+            return
+        stamp = self.stamp()
+        distances = self.world.array(self.world.lidar.read().distances)
+        if planar:
             scan = LaserScan()
-            scan.header.stamp, scan.header.frame_id = self.stamp(), "laser"
+            scan.header.stamp, scan.header.frame_id = stamp, "laser"
             scan.angle_min, scan.angle_max = -math.pi, math.radians(179)
-            scan.angle_increment, scan.scan_time = math.pi / 180, 0.2
-            scan.range_min, scan.range_max = 0.08, 10.0
-            distances = self.world.array(self.world.lidar.read().distances).reshape(-1)
-            scan.ranges = [float(d) if 0.08 <= d < 10 else math.inf for d in distances]
+            scan.angle_increment, scan.scan_time = math.pi / 180, SCAN_STEPS * DT
+            scan.range_min, scan.range_max = MIN_RANGE, MAX_RANGE
+            scan.ranges = scan_ranges(distances)
             self.scan_pub.publish(scan)
-        image = Image()
-        image.header.stamp, image.header.frame_id = self.stamp(), "camera_optical_frame"
-        rgb = self.world.array(self.world.camera.read().rgb).astype("uint8", copy=False)
-        image.height, image.width = CAMERA_HEIGHT, CAMERA_WIDTH
-        image.encoding, image.step, image.data = "rgb8", CAMERA_WIDTH * 3, rgb.tobytes()
-        self.image_pub.publish(image)
+        if cloud:
+            data = cloud_bytes(distances, self.world.lidar_directions)
+            points = PointCloud2()
+            points.header.stamp, points.header.frame_id = stamp, "laser"
+            points.height, points.width = 1, len(data) // 12
+            points.fields = [
+                PointField(name=name, offset=offset, datatype=PointField.FLOAT32, count=1)
+                for name, offset in (("x", 0), ("y", 4), ("z", 8))
+            ]
+            points.is_bigendian, points.is_dense = False, True
+            points.point_step, points.row_step = 12, len(data)
+            points.data = data
+            self.cloud_pub.publish(points)
+
+    def publish_camera(self) -> None:
+        # Calibration is cheap and remains available without an image viewer.
+        stamp = self.stamp()
+        color_requested = self.image_pub.get_subscription_count() > 0
+        depth_requested = self.depth_pub.get_subscription_count() > 0
+        if color_requested or depth_requested:
+            rgb, depth = self.world.read_camera(rgb=color_requested, depth=depth_requested)
+        if color_requested:
+            image = Image()
+            image.header.stamp, image.header.frame_id = stamp, "camera_optical_frame"
+            image.height, image.width = CAMERA_HEIGHT, CAMERA_WIDTH
+            image.encoding, image.step, image.data = (
+                "rgb8",
+                CAMERA_WIDTH * 3,
+                rgb.astype("uint8", copy=False).tobytes(),
+            )
+            self.image_pub.publish(image)
+        if depth_requested:
+            image = Image()
+            image.header.stamp, image.header.frame_id = stamp, "camera_optical_frame"
+            image.height, image.width = CAMERA_HEIGHT, CAMERA_WIDTH
+            image.encoding, image.is_bigendian = "32FC1", False
+            image.step, image.data = CAMERA_WIDTH * 4, depth.astype("<f4", copy=False).tobytes()
+            self.depth_pub.publish(image)
         info = CameraInfo()
-        info.header = image.header
-        info.width, info.height = image.width, image.height
+        info.header.stamp, info.header.frame_id = stamp, "camera_optical_frame"
+        info.width, info.height = CAMERA_WIDTH, CAMERA_HEIGHT
         focal = CAMERA_HEIGHT / (2 * math.tan(math.radians(CAMERA_FOV) / 2))
-        cx, cy = CAMERA_WIDTH / 2, CAMERA_HEIGHT / 2
+        # Genesis samples pixel centres at (u + 0.5, v + 0.5); ROS indexes centres at integers.
+        cx, cy = (CAMERA_WIDTH - 1) / 2, (CAMERA_HEIGHT - 1) / 2
         info.distortion_model, info.d = "plumb_bob", [0.0] * 5
         info.k = [focal, 0.0, cx, 0.0, focal, cy, 0.0, 0.0, 1.0]
         info.r = [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
         info.p = [focal, 0.0, cx, 0.0, 0.0, focal, cy, 0.0, 0.0, 0.0, 1.0, 0.0]
         self.info_pub.publish(info)
+        self.depth_info_pub.publish(info)
 
 
 def main() -> None:
@@ -159,16 +212,20 @@ def main() -> None:
     try:
         with serve_meshes():
             node = Simulator()
+            deadline = time.monotonic()
             while rclpy.ok():
-                started = time.monotonic()
                 rclpy.spin_once(node, timeout_sec=0)
                 node.world.step(time.monotonic())
                 node.clock_pub.publish(Clock(clock=node.stamp()))
-                if node.world.steps % 2 == 0:
-                    node.publish_state()
-                if node.world.steps % 10 == 0:
-                    node.publish_sensors()
-                time.sleep(max(0, DT - (time.monotonic() - started)))
+                node.publish_state()
+                if node.world.steps % SCAN_STEPS == 0:
+                    node.publish_lidar()
+                if node.world.steps % CAMERA_STEPS == CAMERA_STEPS // 2:
+                    node.publish_camera()
+                if node.world.steps % CLOUD_STEPS == 0:
+                    node.publish_status()
+                deadline, delay = next_tick(deadline, time.monotonic(), DT)
+                time.sleep(delay)
     except KeyboardInterrupt:
         pass
     finally:

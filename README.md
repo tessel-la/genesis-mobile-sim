@@ -47,7 +47,11 @@ docker compose logs --tail 80 mobile_sim
 ```
 
 Connect Robo-Boy to its ROS stack. Add **Camera** with `/camera/image_raw` and a **3D view**
-with fixed frame `map`. Install [Go2 Control](https://github.com/tessel-la/robo-boy-go2-control-panel)
+with fixed frame `map` and point cloud `/points` for 3D lidar. For metric depth,
+choose Camera’s **ROS messages** source and `/camera/depth/image_raw`. In a 3D
+**Camera image** layer, select that topic, `/camera/depth/camera_info`, and
+**Depth points (ROS)**. Install
+[Go2 Control](https://github.com/tessel-la/robo-boy-go2-control-panel)
 through **Manage installations…**, add its tile, and request control before driving.
 Its README also covers local installation before public releases are available.
 
@@ -83,7 +87,7 @@ For native CPU physics, install the same CPU PyTorch version as Docker, then run
 sensor/motion smoke test from the repository root:
 
 ```bash
-uv pip install 'torch==2.14.1' --index-url https://download.pytorch.org/whl/cpu
+uv pip install 'torch==2.11.0' --index-url https://download.pytorch.org/whl/cpu
 PYOPENGL_PLATFORM=egl EGL_PLATFORM=surfaceless LIBGL_ALWAYS_SOFTWARE=1 uv run --no-sync python tests/smoke_physics.py
 ```
 
@@ -105,9 +109,9 @@ address when a deployment needs direct mesh access. Keep command traffic on the 
 
 - CPU simulation can run slower than wall time; sensor rates use simulation time.
 - The policies are simulation baselines, not hardware controllers. Stop sends zero velocity and is not a hardware emergency stop. Cancel navigation before teleoperation or recovery.
-- Odometry is ideal ground truth. Mapping is planar lidar SLAM; the RGB camera does not implement visual SLAM. Robo-Boy currently has no occupancy-grid renderer.
+- Odometry is ideal ground truth. Mapping uses planar lidar SLAM; the 3D lidar cloud is for visualization. The RGB camera does not implement visual SLAM.
 - A fall requires explicit recovery, which can fail near obstacles. Each startup creates a new SLAM session; saved maps persist, but pose-graph restoration is not automatic.
-- AMD hardware support is unverified. Its ROCm 6.3 overlay pins PyTorch 2.7.1; CPU/NVIDIA pin 2.14.1. Match the documented wheel channel to the host driver.
+- AMD hardware support is unverified. Its ROCm 6.3 overlay pins PyTorch 2.7.1; CPU/NVIDIA pin 2.11.0. Match the documented wheel channel to the host driver.
 - Python versions and policy bytes are pinned. System ROS repositories, base images, and host drivers retain their own update lifecycle.
 
 ## License

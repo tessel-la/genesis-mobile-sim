@@ -7,7 +7,7 @@ from lifecycle_msgs.srv import GetState
 from nav_msgs.msg import OccupancyGrid
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, qos_profile_sensor_data
-from sensor_msgs.msg import Image, LaserScan
+from sensor_msgs.msg import Image, LaserScan, PointCloud2
 
 
 def main() -> None:
@@ -15,6 +15,12 @@ def main() -> None:
     node = Node("mobile_health")
     received = set()
     subscriptions = [
+        node.create_subscription(
+            PointCloud2,
+            "/points",
+            lambda m: received.add("points") if m.width > 0 and m.data else None,
+            qos_profile_sensor_data,
+        ),
         node.create_subscription(
             LaserScan,
             "/scan",
@@ -50,7 +56,7 @@ def main() -> None:
                 future.done() and not future.exception() and future.result().current_state.id == 3
                 for future in futures.values()
             )
-            if received == {"scan", "camera", "map"} and active:
+            if received == {"scan", "points", "camera", "map"} and active:
                 return
         raise SystemExit(
             f"Mobile stack not ready: received {sorted(received)}; check lifecycle logs"
