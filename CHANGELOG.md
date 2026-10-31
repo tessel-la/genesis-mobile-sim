@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.0](https://github.com/tessel-la/genesis-mobile-sim/compare/v0.3.0...v0.4.0) (2026-10-31)
+
+
+### Features
+
+* promote dev to main ([#11](https://github.com/tessel-la/genesis-mobile-sim/issues/11)) ([2631ea4](https://github.com/tessel-la/genesis-mobile-sim/commit/2631ea425370b3c7662bd130aa01f301cf3c876a))
+* publish calibrated go2 depth images on demand ([#10](https://github.com/tessel-la/genesis-mobile-sim/issues/10)) ([aa79baa](https://github.com/tessel-la/genesis-mobile-sim/commit/aa79baa403d0c4216ae2bc5ec874515d22918f51))
+
 ## [0.3.0](https://github.com/tessel-la/genesis-mobile-sim/compare/v0.2.0...v0.3.0) (2026-10-25)
 
 
